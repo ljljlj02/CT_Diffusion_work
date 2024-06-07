@@ -1,33 +1,24 @@
 import torch.optim as optim
+from tqdm import tqdm
 
-
-def train_model(model, dataloader, criterion, optimizer, num_epochs=25):
-    model.train()
-    for epoch in range(num_epochs):
-        running_loss = 0.0
-        for noisy_imgs, clean_imgs in dataloader:
-            noisy_imgs = noisy_imgs.to(device)
-            clean_imgs = clean_imgs.to(device)
-
-            optimizer.zero_grad()
-            outputs = model(noisy_imgs)
-            loss = criterion(outputs, clean_imgs)
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item() * noisy_imgs.size(0)
-
-        epoch_loss = running_loss / len(dataloader.dataset)
-        print(f'Epoch {epoch}/{num_epochs - 1}, Loss: {epoch_loss:.4f}')
-
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = DiffusionModel().to(device)
 criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-transform = transforms.Compose([transforms.Normalize(mean=[0.5], std=[0.5])])
-dataset = CTNiftiDataset(noisy_image_paths, clean_image_paths, transform=transform)
-dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
+num_epochs = 100
+for epoch in range(num_epochs):
+    epoch_loss = 0
+    for noisy, clean in tqdm(dataloader):
+        noisy, clean = noisy.cuda(), clean.cuda()
+        optimizer.zero_grad()
 
-train_model(model, dataloader, criterion, optimizer, num_epochs=25)
+        batch_size = noisy.size(0)
+        t = torch.randint(0, timesteps, (batch_size,), dtype=torch.float32).cuda()
+        output = model(noisy, t)
+        loss = criterion(output, clean)
+        loss.backward()
+        optimizer.step()
+        
+        epoch_loss += loss.item()
+
+    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss/len(dataloader):.4f}')
+
